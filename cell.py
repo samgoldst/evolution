@@ -9,6 +9,7 @@ class Cell:
         self.fitness: int = 0
         self.angle_acceleration = 36
         self.acceleration = .1
+        self.max_speed = 10
         self.x: float = x
         self.y: float = y
         self.first_weights = first_weights
@@ -25,6 +26,7 @@ class Cell:
         if abs(self.angle_acceleration) > 12 or abs(self.angle_acceleration) < 3:
             self.velocity /= 1.3
         self.velocity += self.acceleration * output[1]
+        self.velocity = min(self.velocity, self.max_speed)
         self.x += self.velocity * math.cos(math.radians(self.angle))
         self.y += self.velocity * math.sin(math.radians(self.angle))
         if self.x > 800:
