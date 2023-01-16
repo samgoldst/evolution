@@ -1,60 +1,87 @@
-import random
-
-import numpy as np
+import copy
 import math
+import random
+import numpy as np
+
+from cell import Cell
+from food import Food
 
 
-class Cell:
-    def __init__(self, x, y, first_weights, second_weights):
-        self.fitness: int = 0
-        self.angle_acceleration = 36
-        self.acceleration = .1
-        self.max_speed = 10
-        self.x: float = x
-        self.y: float = y
-        self.first_weights = first_weights
-        self.second_weights = second_weights
-        self.angle = random.randint(0, 360)
-        self.velocity = 0
-        self.color = [random.randint(0, 255), random.randint(0, 255), random.randint(0, 122)]
+class Board:
+    def __init__(self, width, height, num_foods, num_cells, reach):
+        self.width = width
+        self.height = height
+        self.reach = reach
+        self.foods = []
+        self.cells = []
+        for i in range(num_foods):
+            x = random.randint(0, width)
+            y = random.randint(0, height)
+            self.foods.append(Food(x, y))
+        for i in range(num_cells):
+            x = random.randint(0, width)
+            y = random.randint(0, height)
+            first_weights = np.random.uniform(-1, 1, (5, 4))
+            second_weights = np.random.uniform(-1, 1, (2, 5))
+            self.cells.append(Cell(x, y, first_weights, second_weights))
 
-    def action(self, angle: float, distance: float):
-        intermediate_values = np.tanh(np.dot(self.first_weights, np.array((self.angle - angle, distance, self.x, self.y))))
-        output = np.tanh(np.dot(self.second_weights, intermediate_values) / 10)
-        self.angle += self.angle_acceleration * output[0]
-        self.angle %= 360
-        if abs(self.angle_acceleration) > 12 or abs(self.angle_acceleration) < 3:
-            self.velocity /= 1.3
-        self.velocity += self.acceleration * output[1]
-        self.velocity = min(self.velocity, self.max_speed)
-        self.x += self.velocity * math.cos(math.radians(self.angle))
-        self.y += self.velocity * math.sin(math.radians(self.angle))
-        if self.x > 800:
-            self.x = 800.0
-            self.angle = (self.angle + 180) % 360
-        if self.x < 0:
-            self.x = 0.0
-            self.angle = (self.angle + 180) % 360
-        if self.y > 800:
-            self.y = 800.0
-            self.angle = (self.angle + 180) % 360
-        if self.y < 0:
-            self.y = 0.0
-            self.angle = (self.angle + 180) % 360
+    def simulate(self, generations, timesteps, percentage):
+        print()
+        log = []
+        for i in range(generations):
+            total = 0
+            generation_log = []
+            for j in range(timesteps):
+                # print(f"\r{i}: {j}   ", end="")
+                timestep_log = [[],[]]
+                for c in self.cells:
+                    c.action(*self.closest_food(c))
+                    eaten = self.eat(c)
+                    c.eat(eaten)
+                    total += eaten
+                    timestep_log[0].append([(c.x, c.y), c.color])
+                for f in self.foods:
+                    timestep_log[1].append((f.x, f.y))
+                generation_log.append(timestep_log)
+            log.append(generation_log)
+            print(total, max([c.fitness for c in self.cells]))
+            self.purge(percentage)
+        return log
 
-    def eat(self, eaten):
-        self.fitness += eaten
+    def closest_food(self, c: Cell):
+        cx, cy = c.x, c.y
+        angle = None
+        min = -1
+        for f in self.foods:
+            distance = math.sqrt((cx - f.x) ** 2 + (cy - f.y) ** 2)
+            if distance < min or min == -1:
+                min = distance
+                angle = math.degrees(math.atan2((cy - f.y), (cx - f.x)))
+        return angle, min
 
-    def change(self, percent):
-        self.first_weights += np.random.uniform(-percent, percent, (5, 4))
-        self.second_weights += np.random.uniform(-percent, percent, (2, 5))
-        self.angle_acceleration += random.randint(-3, 3)
-        self.angle = random.randint(0, 360)
-        self.velocity = 0
-        self.fitness = 0
-        for i in range(3):
-            self.color[i] += random.randint(-25, 25)
-            if self.color[i] > 255:
-                self.color[i] = 255
-            if self.color[i] < 0:
-                self.color[i] = 0
+    def eat(self, c: Cell):
+        cx, cy = c.x, c.y
+        eaten = 0
+        for f in self.foods:
+            if math.sqrt((cx - f.x) ** 2 + (cy - f.y) ** 2) < self.reach:
+                f.x, f.y = random.randint(0, self.width), random.randint(0, self.height)
+                eaten += 1
+        return eaten
+
+    def data(self):
+        self.cells.sort(key=lambda x: x.fitness, reverse=True)
+        print()
+        for c in self.cells:
+            print(f"{c.fitness}")
+
+    def purge(self, percentage):
+        self.cells.sort(key=lambda x: x.fitness, reverse=True)
+        self.cells = self.cells[:len(self.cells)//2]
+        self.cells += copy.deepcopy(self.cells)
+        for c in self.cells:
+            c.x = random.randint(100, 700)
+            c.y = random.randint(100, 700)
+            c.change(.1)
+        for f in self.foods:
+            f.x  = random.randint(0, 800)
+            f.y = random.randint(0, 800)
