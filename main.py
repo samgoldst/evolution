@@ -3,8 +3,9 @@ import pygame
 
 from board import Board
 
+
 b = Board(800, 800, 500, 50, 25)
-b.simulate(100, 50, .1)
+b.simulate(1, 50, .1)
 #define constants
 
 pygame.init()
@@ -19,6 +20,10 @@ percentage = .5
 
 while True:
     gen = b.simulate(1, 720, percentage)[0]
+    cs = b.cells.copy()
+    cs.sort(key=lambda x: x.fitness, reverse=True)
+    top = cs[0]
+    print(top.first_weights, "\n", top.second_weights)
     percentage *= .98
     for frame in gen:
         for event in pygame.event.get():
